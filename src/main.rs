@@ -1,6 +1,8 @@
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::Table;
 use comfy_table::TableComponent::*;
+use indoc::indoc;
+use text_io::read;
 
 struct Asset {
     ticker: String,
@@ -32,7 +34,7 @@ fn format_money(cents: u32) -> String {
     format!("${:.2}", cents as f32 / 100.0)
 }
 
-fn print_assets(assets: &[Asset]) {
+fn print_assets(assets: &Vec<Asset>) {
     let mut table = Table::new();
 
     // I prefer a Unicode table with solid lines
@@ -80,13 +82,48 @@ fn print_assets(assets: &[Asset]) {
             },
         ]);
     }
-
-    println!("Assets");
     println!("{table}");
 }
 
+fn get_current_ticker_price(_ticker: String) -> u32 {
+    // TODO: use Yahoo Finance for this
+    200
+}
+
+fn add_asset() -> Asset {
+    print!("Enter ticker: ");
+    let symbol: String = read!();
+
+    print!("Enter buy price in total cents: ");
+    let buy_price: u32 = read!();
+
+    print!("Enter sell price if sold, otherwise enter 'held': ");
+    let sell_price_raw: String = read!();
+
+    // if I access a string twice I have to make it owned for some reason - IDK
+    // what that means or if there is a better way
+    Asset {
+        ticker: symbol.to_owned(),
+        buy_price_cents: buy_price,
+        current_price_cents: get_current_ticker_price(symbol),
+        sell_price_cents: (if sell_price_raw.eq("held") {
+            None
+        } else {
+            Some(sell_price_raw.parse().unwrap())
+        }),
+    }
+}
+
+fn print_help() {
+    let help_text = indoc! {"
+    assets - prints all assets, both held and sold
+    new - adds a new asset
+    help - prints this help text"};
+    println!("{}", help_text);
+}
+
 fn main() {
-    let assets: [Asset; 2] = [
+    let mut assets: Vec<Asset> = vec![
         Asset {
             ticker: "MSFT".to_string(),
             buy_price_cents: 1000,
@@ -100,7 +137,17 @@ fn main() {
             sell_price_cents: Some(40000),
         },
     ];
-
-    print_assets(&assets);
-    println!();
+    let mut input: String;
+    loop {
+        print!("» ");
+        input = read!();
+        match input.as_str() {
+            // TODO: handle blank input properly somehow
+            "assets" => print_assets(&assets),
+            "exit" => break,
+            "new" => assets.push(add_asset()),
+            "help" => print_help(),
+            _ => println!("Unknown command. Enter 'help' for a list of valid commands"),
+        }
+    }
 }
