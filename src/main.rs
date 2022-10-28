@@ -142,19 +142,13 @@ fn load_portfolio() -> Option<Portfolio> {
     // get the filename and read the file
     let filename = prompt("Enter filename to load: ");
     let data = fs::read_to_string(filename);
-
-    let raw_portfolio: String;
-    if data.is_ok() {
-        raw_portfolio = data.unwrap();
-    } else {
-        return None;
-    };
+    let raw_portfolio: String = if let Ok(x) = data { x } else { return None };
 
     // convert the read file into an actual Portfolio struct
     let portfolio = serde_json::from_str(&raw_portfolio);
 
-    if portfolio.is_ok() {
-        Some(portfolio.unwrap())
+    if let Ok(x) = portfolio {
+        Some(x)
     } else {
         None
     }
@@ -163,9 +157,8 @@ fn load_portfolio() -> Option<Portfolio> {
 fn dump_portfolio(portfolio: &Portfolio) {
     let json = serde_json::to_string(&portfolio);
     let filename = prompt("Enter filename to dump assets to: ");
-    if json.is_ok() {
-        //println!("{}", json.unwrap())
-        let result = fs::write(filename, json.unwrap());
+    if let Ok(x) = json {
+        let result = fs::write(filename, x);
         if result.is_err() {
             println!("Error occurred when dumping. Portfolio not dumped.");
         }
