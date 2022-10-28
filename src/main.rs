@@ -2,8 +2,17 @@ use comfy_table::presets::UTF8_FULL;
 use comfy_table::Table;
 use comfy_table::TableComponent::*;
 use indoc::indoc;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::vec;
 use text_io::read;
 
+#[derive(Serialize, Deserialize, Debug)]
+struct Portfolio {
+    assets: Vec<Asset>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct Asset {
     ticker: String,
     buy_price_cents: u32,
@@ -118,35 +127,70 @@ fn print_help() {
     let help_text = indoc! {"
     assets - prints all assets, both held and sold
     new - adds a new asset
-    help - prints this help text"};
+    help - prints this help text
+    load - loads assets from a file"};
     println!("{}", help_text);
 }
 
+fn prompt(text: &str) -> String {
+    print!("{}", text);
+    let data: String = read!();
+    data
+}
+
+fn load_portfolio() -> Option<Portfolio> {
+    // get the filename and read the file
+    let filename = prompt("Enter filename to load: ");
+    let data = fs::read_to_string(filename);
+
+    let raw_portfolio: String;
+    if data.is_ok() {
+        raw_portfolio = data.unwrap();
+    } else {
+        return None;
+    };
+
+    // convert the read file into an actual Portfolio struct
+    let portfolio = serde_json::from_str(&raw_portfolio);
+
+    if portfolio.is_ok() {
+        Some(portfolio.unwrap())
+    } else {
+        None
+    }
+}
+
+fn dump_portfolio(portfolio: &Portfolio) {
+    let json = serde_json::to_string(&portfolio);
+    let filename = prompt("Enter filename to dump assets to: ");
+    if json.is_ok() {
+        //println!("{}", json.unwrap())
+        let result = fs::write(filename, json.unwrap());
+        if result.is_err() {
+            println!("Error occurred when dumping. Portfolio not dumped.");
+        }
+    } else {
+        println!("Error occurred when dumping. Portfolio not dumped.");
+    }
+}
+
 fn main() {
-    let mut assets: Vec<Asset> = vec![
-        Asset {
-            ticker: "MSFT".to_string(),
-            buy_price_cents: 1000,
-            current_price_cents: 25000,
-            sell_price_cents: None,
-        },
-        Asset {
-            ticker: "APPL".to_string(),
-            buy_price_cents: 30000,
-            current_price_cents: 10000000,
-            sell_price_cents: Some(40000),
-        },
-    ];
+    let mut active_portfolio: Portfolio = Portfolio { assets: vec![] };
     let mut input: String;
     loop {
         print!("» ");
         input = read!();
         match input.as_str() {
             // TODO: handle blank input properly somehow
-            "assets" => print_assets(&assets),
+            "assets" => print_assets(&active_portfolio.assets),
             "exit" => break,
-            "new" => assets.push(add_asset()),
+            "new" => active_portfolio.assets.push(add_asset()),
             "help" => print_help(),
+            "load" => match load_portfolio() {
+                None => println!("An error occurred when loading portfolio. Portfolio not loaded."),
+                Some(x) => active_portfolio = x,
+            },
+            "dump" => dump_portfolio(&active_portfolio),
             _ => println!("Unknown command. Enter 'help' for a list of valid commands"),
         }
     }

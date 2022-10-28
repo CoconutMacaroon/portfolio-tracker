@@ -10,6 +10,8 @@ description = "A terminal-based portfolio tracker"
 comfy-table = "6.1.1"
 text_io = "0.1.12"
 indoc = "1.0"
+serde = {version = "1.0", features = ["derive"]}
+serde_json = "1.0"
 
 [profile.release]
 # make a small binary - I care much more about small size than speed here
