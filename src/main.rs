@@ -16,7 +16,9 @@ struct Portfolio {
 struct Asset {
     ticker: String,
     buy_price_cents: u32,
-    // technically we don't care about the current price if it is sold, but it is still a valid property to have, so we include it here, although it isn't displayed
+    // technically we don't care about the current price if
+    // it is sold, but it is still a valid property to have,
+    // so we include it here, although it isn't displayed
     current_price_cents: u32,
     // if sell price is None, it isn't sold
     sell_price_cents: Option<u32>,
@@ -25,7 +27,7 @@ struct Asset {
 fn is_asset_sold(asset: &Asset) -> bool {
     // if there is no sell price, then it isn't sold (i.e., it is currently held)
     match asset.sell_price_cents {
-        Some(_x) => true,
+        Some(_) => true,
         None => false,
     }
 }
