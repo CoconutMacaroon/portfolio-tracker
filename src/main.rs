@@ -134,7 +134,13 @@ fn print_help() {
 
 fn prompt(text: &str) -> String {
     print!("{}", text);
-    let data: String = read!();
+    let mut data: String = read!("{}\n");
+
+    // on Windows systems, if we read to \n, a \r character can be appended
+    // so we remove it - AFAIK this is a Windows-only isse
+    if data.ends_with('\r') {
+        data.pop();
+    }
     data
 }
 
@@ -171,12 +177,10 @@ fn main() {
     let mut active_portfolio: Portfolio = Portfolio { assets: vec![] };
     let mut input: String;
     loop {
-        print!("» ");
-        input = read!();
+        input = prompt("» ");
+
         match input.as_str() {
-            // TODO: handle blank input properly somehow
             "assets" => print_assets(&active_portfolio.assets),
-            "exit" => break,
             "new" => active_portfolio.assets.push(add_asset()),
             "help" => print_help(),
             "load" => match load_portfolio() {
@@ -184,6 +188,8 @@ fn main() {
                 Some(x) => active_portfolio = x,
             },
             "dump" => dump_portfolio(&active_portfolio),
+            "exit" => break,
+            "" => continue,
             _ => println!("Unknown command. Enter 'help' for a list of valid commands"),
         }
     }
