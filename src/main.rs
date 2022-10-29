@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::vec;
 use text_io::read;
+use yahoo_finance_api as yf;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Portfolio {
@@ -26,10 +27,7 @@ struct Asset {
 
 fn is_asset_sold(asset: &Asset) -> bool {
     // if there is no sell price, then it isn't sold (i.e., it is currently held)
-    match asset.sell_price_cents {
-        Some(_) => true,
-        None => false,
-    }
+    asset.sell_price_cents.is_some()
 }
 
 fn is_asset_held(asset: &Asset) -> bool {
@@ -96,12 +94,15 @@ fn print_assets(assets: &Vec<Asset>) {
     println!("{table}");
 }
 
-fn get_current_ticker_price(_ticker: String) -> u32 {
-    // TODO: use Yahoo Finance for this
-    200
+fn get_current_ticker_price(connector: &yf::YahooConnector, ticker: &String) -> Option<u32> {
+    if let Ok(x) = tokio_test::block_on(connector.get_latest_quotes(ticker, "1d")) {
+        Some((x.last_quote().unwrap().close * 100.0) as u32)
+    } else {
+        None
+    }
 }
 
-fn add_asset() -> Asset {
+fn add_asset(connector: &yf::YahooConnector) -> Option<Asset> {
     print!("Enter ticker: ");
     let symbol: String = read!();
 
@@ -111,17 +112,22 @@ fn add_asset() -> Asset {
     print!("Enter sell price if sold, otherwise enter 'held': ");
     let sell_price_raw: String = read!();
 
+    let current_price: Option<u32> = get_current_ticker_price(connector, &symbol);
     // if I access a string twice I have to make it owned for some reason - IDK
     // what that means or if there is a better way
-    Asset {
-        ticker: symbol.to_owned(),
-        buy_price_cents: buy_price,
-        current_price_cents: get_current_ticker_price(symbol),
-        sell_price_cents: (if sell_price_raw.eq("held") {
-            None
-        } else {
-            Some(sell_price_raw.parse().unwrap())
-        }),
+    if let Some(x) = current_price {
+        Some(Asset {
+            ticker: symbol,
+            buy_price_cents: buy_price,
+            current_price_cents: x,
+            sell_price_cents: (if sell_price_raw.eq("held") {
+                None
+            } else {
+                Some(sell_price_raw.parse().unwrap())
+            }),
+        })
+    } else {
+        None
     }
 }
 
@@ -130,7 +136,10 @@ fn print_help() {
     assets - prints all assets, both held and sold
     new - adds a new asset
     help - prints this help text
-    load - loads assets from a file"};
+    load - loads assets from a file
+    dump - saves assets to a file
+    refresh - updates the current price of all assets
+    exit - exits the program"};
     println!("{}", help_text);
 }
 
@@ -178,12 +187,23 @@ fn dump_portfolio(portfolio: &Portfolio) {
 fn main() {
     let mut active_portfolio: Portfolio = Portfolio { assets: vec![] };
     let mut input: String;
+    let connector: yf::YahooConnector = yf::YahooConnector::new();
     loop {
         input = prompt("» ");
 
         match input.as_str() {
             "assets" => print_assets(&active_portfolio.assets),
-            "new" => active_portfolio.assets.push(add_asset()),
+            "new" => {
+                // FIXME: after adding an asset, the prompt is printed twice
+                let new_asset: Option<Asset> = add_asset(&connector);
+                if let Some(x) = new_asset {
+                    active_portfolio.assets.push(x);
+                } else {
+                    println!(
+                        "An error occurred when fetching stock price. Ensure ticker is correct."
+                    );
+                }
+            } //active_portfolio.assets.push(add_asset(&connector)),
             "help" => print_help(),
             "load" => match load_portfolio() {
                 None => println!("An error occurred when loading portfolio. Portfolio not loaded."),
@@ -191,6 +211,22 @@ fn main() {
             },
             "dump" => dump_portfolio(&active_portfolio),
             "exit" => break,
+            "refresh" => {
+                for item in &mut active_portfolio.assets {
+                    // item.ticker is already a String, but to_string() appears
+                    // to be needed to deal with String not being copy-able
+                    let tmp: Option<u32> =
+                        get_current_ticker_price(&connector, &item.ticker.to_string());
+                    if let Some(x) = tmp {
+                        item.current_price_cents = x;
+                    } else {
+                        println!(
+                            "Error when fetching current price for ticker {}.",
+                            item.ticker
+                        );
+                    }
+                }
+            }
             "" => continue,
             _ => println!("Unknown command. Enter 'help' for a list of valid commands"),
         }
