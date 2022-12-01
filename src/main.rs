@@ -24,6 +24,7 @@ struct Asset {
     current_price_cents: u32,
     // if sell price is None, it isn't sold
     sell_price_cents: Option<u32>,
+    quantity: u32,
 }
 
 fn is_asset_sold(asset: &Asset) -> bool {
@@ -58,6 +59,7 @@ fn print_assets(assets: &Vec<Asset>) {
         "Current Price",
         "Percent Change",
         "Sell Price",
+        "Quantity"
     ]);
 
     for asset in assets {
@@ -90,6 +92,7 @@ fn print_assets(assets: &Vec<Asset>) {
             } else {
                 "N/A (currently held)".to_string()
             },
+            asset.quantity.to_string(),
         ]);
     }
     println!("{table}");
@@ -113,6 +116,9 @@ fn add_asset(connector: &yf::YahooConnector) -> Option<Asset> {
     print!("Enter sell price if sold, otherwise enter 'held': ");
     let sell_price_raw: String = read!();
 
+    print!("Enter quantity: ");
+    let n: u32 = read!();
+
     let current_price: Option<u32> = get_current_ticker_price(connector, &symbol);
     // if I access a string twice I have to make it owned for some reason - IDK
     // what that means or if there is a better way
@@ -125,6 +131,7 @@ fn add_asset(connector: &yf::YahooConnector) -> Option<Asset> {
         } else {
             Some(sell_price_raw.parse().unwrap())
         }),
+        quantity: n,
     })
 }
 
