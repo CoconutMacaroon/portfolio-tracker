@@ -2,6 +2,7 @@ use comfy_table::presets::UTF8_FULL;
 use comfy_table::Table;
 use comfy_table::TableComponent::*;
 use indoc::indoc;
+use rustyline::Editor;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::vec;
@@ -115,20 +116,16 @@ fn add_asset(connector: &yf::YahooConnector) -> Option<Asset> {
     let current_price: Option<u32> = get_current_ticker_price(connector, &symbol);
     // if I access a string twice I have to make it owned for some reason - IDK
     // what that means or if there is a better way
-    if let Some(x) = current_price {
-        Some(Asset {
-            ticker: symbol,
-            buy_price_cents: buy_price,
-            current_price_cents: x,
-            sell_price_cents: (if sell_price_raw.eq("held") {
-                None
-            } else {
-                Some(sell_price_raw.parse().unwrap())
-            }),
-        })
-    } else {
-        None
-    }
+    current_price.map(|x| Asset {
+        ticker: symbol,
+        buy_price_cents: buy_price,
+        current_price_cents: x,
+        sell_price_cents: (if sell_price_raw.eq("held") {
+            None
+        } else {
+            Some(sell_price_raw.parse().unwrap())
+        }),
+    })
 }
 
 fn print_help() {
@@ -144,15 +141,13 @@ fn print_help() {
 }
 
 fn prompt(text: &str) -> String {
-    print!("{}", text);
-    let mut data: String = read!("{}\n");
+    let rustyline = Editor::<()>::new();
+    let input = rustyline.expect("REASON").readline(text);
 
-    // on Windows systems, if we read to \n, a \r character can be appended
-    // so we remove it - AFAIK this is a Windows-only isse
-    if data.ends_with('\r') {
-        data.pop();
+    match input {
+        Ok(line) => line,
+        Err(_) => std::process::exit(3),
     }
-    data
 }
 
 fn load_portfolio() -> Option<Portfolio> {
@@ -190,6 +185,7 @@ fn main() {
     let connector: yf::YahooConnector = yf::YahooConnector::new();
     loop {
         input = prompt("» ");
+        //input = prompt(">");
 
         match input.as_str() {
             "assets" => print_assets(&active_portfolio.assets),
@@ -227,7 +223,9 @@ fn main() {
                     }
                 }
             }
-            "" => continue,
+            "" => {
+                continue;
+            }
             _ => println!("Unknown command. Enter 'help' for a list of valid commands"),
         }
     }
