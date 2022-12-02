@@ -45,13 +45,45 @@ fn format_money(cents: u32) -> String {
     format!("${:.2}", cents as f32 / 100.0)
 }
 
-fn print_assets(assets: &Vec<Asset>) {
-    let mut table = Table::new();
-
-    // I prefer a Unicode table with solid lines
+fn apply_table_display_settings(table: &mut Table) {
+    // this is my preferred style for a table
     table.load_preset(UTF8_FULL);
     table.set_style(VerticalLines, '│');
     table.set_style(HorizontalLines, '─');
+}
+
+fn print_summary(assets: &Vec<Asset>) {
+    let mut table = Table::new();
+    // TODO: add support for sold assets in a seperate table
+    apply_table_display_settings(&mut table);
+    table.set_header(vec![
+        "Net Buy Price",
+        "Market Value",
+        "Unrealized Gains/Losses",
+    ]);
+
+    let mut net_buy_price: u32 = 0;
+    let mut market_value: u32 = 0;
+    for asset in assets {
+        if asset.sell_price_cents.is_some() {
+            continue;
+        }
+        net_buy_price += asset.buy_price_cents * asset.quantity;
+        market_value += asset.current_price_cents * asset.quantity;
+    }
+    let unrealized_gains_losses: u32 = net_buy_price - market_value;
+    table.add_row(vec![
+        format_money(net_buy_price),
+        format_money(market_value),
+        format_money(unrealized_gains_losses),
+    ]);
+    println!("{table}");
+}
+
+fn print_assets(assets: &Vec<Asset>) {
+    let mut table = Table::new();
+
+    apply_table_display_settings(&mut table);
 
     table.set_header(vec![
         "Ticker",
@@ -138,6 +170,7 @@ fn add_asset(connector: &yf::YahooConnector) -> Option<Asset> {
 fn print_help() {
     let help_text = indoc! {"
     assets - prints all assets, both held and sold
+    summary - prints a summary of the loaded portfolio
     new - adds a new asset
     help - prints this help text
     load - loads assets from a file
@@ -196,6 +229,7 @@ fn main() {
 
         match input.as_str() {
             "assets" => print_assets(&active_portfolio.assets),
+            "summary" => print_summary(&active_portfolio.assets),
             "new" => {
                 // FIXME: after adding an asset, the prompt is printed twice
                 let new_asset: Option<Asset> = add_asset(&connector);
